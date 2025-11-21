@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Data Tabungan</title>
+<style>
+  body { font-family: Arial, sans-serif; margin:0; background:#f5f5f5; }
+  header { background:#0d6b33; color:white; padding:15px; font-size:22px; text-align:center; }
+  #container { max-width:1100px; margin:auto; padding:15px; }
+  input { width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; margin-bottom:15px; }
+  table { width:100%; border-collapse:collapse; background:white; margin-top:10px; }
+  th, td { border:1px solid #ddd; padding:8px; font-size:14px; text-align:left; }
+  th { background:#0d6b33; color:white; cursor:pointer; }
+  tr:nth-child(even) { background:#f0f7ef; }
+  #loading { display:none; padding:10px; color:#0d6b33; font-weight:bold; text-align:center; }
+  #pagination button { margin:3px; padding:5px 10px; border:none; background:#0d6b33; color:white; border-radius:5px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>DATA TABUNGAN</header>
+<div id="container">
+  <h3>Pencarian:</h3>
+  <input type="text" id="search" placeholder="Ketik untuk mencari..." onkeyup="applyFilters()"/>
+  <div id="loading">Memuat data...</div>
+  <div id="output">Memuat...</div>
+  <div id="pagination"></div>
+</div>
+<script>
+const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTidv1mNe40lA8Yr3Z6UGZ1Ruo5DR-pnCi8EoQT9NFEplDiZVGyZWdOvWaJiT0Iag/pub?output=csv";
+let fullData = [];
+let filteredData = [];
+let currentPage = 1;
+let rowsPerPage = 20;
+function toRupiah(val) { if (!val || isNaN(val)) return val; return "Rp " + Number(val).toLocaleString("id-ID"); }
+function loadCSV() {
+  document.getElementById("loading").style.display = "block";
+  fetch(sheetUrl)
+    .then(res => res.text())
+    .then(csv => {
+      const rows = csv.split("\n").map(r => r.split(","));
+      const headers = rows[0];
+      const data = rows.slice(1).map(row => row.map(cell => cell.trim()));
+      const formattedData = data.map(row => row.map(cell => /^[0-9]+$/.test(cell) ? toRupiah(cell) : cell));
+      fullData = [headers, ...formattedData];
+      filteredData = fullData;
+      renderTable();
+      document.getElementById("loading").style.display = "none";
+    })
+    .catch(err => {
+      document.getElementById("output").innerHTML = "Gagal memuat data.";
+      console.error(err);
+    });
+}
+function applyFilters() {
+  const keyword = document.getElementById("search").value.toLowerCase();
+  filteredData = fullData.filter(row => row.join(" ").toLowerCase().includes(keyword));
+  currentPage = 1;
+  renderTable();
+}
+function sortByColumn(index) {
+  const header = filteredData[0];
+  const body = filteredData.slice(1);
+  body.sort((a, b) => (a[index] || "").toString().localeCompare((b[index] || "")));
+  filteredData = [header, ...body];
+  renderTable();
+}
+function renderTable() {
+  if (!filteredData.length) { document.getElementById("output").innerHTML = "Tidak ada data."; return; }
+  let table = "<table><tr>";
+  filteredData[0].forEach((h, i) => table += `<th onclick="sortByColumn(${i})">${h}</th>`);
+  table += "</tr>";
+  const start = (currentPage - 1) * rowsPerPage + 1;
+  const end = start + rowsPerPage;
+  const pageRows = filteredData.slice(start, end);
+  pageRows.forEach(r => { table += "<tr>" + r.map(c => `<td>${c || ""}</td>`).join("") + "</tr>"; });
+  table += "</table>";
+  document.getElementById("output").innerHTML = table;
+  renderPagination();
+}
+function renderPagination() {
+  const totalPages = Math.ceil((filteredData.length - 1) / rowsPerPage);
+  let buttons = "";
+  for (let i = 1; i <= totalPages; i++) buttons += `<button onclick="gotoPage(${i})">${i}</button>`;
+  document.getElementById("pagination").innerHTML = buttons;
+}
+function gotoPage(num) { currentPage = num; renderTable(); }
+loadCSV();
+</script>
+</body>
+</html>
